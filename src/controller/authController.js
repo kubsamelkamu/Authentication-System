@@ -25,39 +25,45 @@ exports.register = async (req, res) => {
 };
 
 
-
 exports.loginUser = async (req, res) => {
+    const { email, password } = req.body;
+
     try {
-        const { email, password } = req.body;
-
-        if (!email || !password) {
-            return res.status(400).json({ message: 'All fields are required' });
-        }
-
         const user = await User.findOne({ email });
         if (!user) {
-            return res.status(400).json({ message: 'Invalid email or password' });
+            return res.status(404).json({ message: "User not found" });
         }
 
-        const isMatch = await user.comparePassword(password);
+        const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(400).json({ message: 'Invalid email or password' });
+            return res.status(401).json({ message: "Invalid credentials" });
         }
 
-        const accessToken = generateAccessToken(user);
-        const refreshToken = generateRefreshToken(user);
+        const accessToken = jwt.sign(
+            { id: user._id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: "15m" } 
+        );
 
-        const newToken = new Token({ userId: user._id, token: refreshToken });
-        await newToken.save();
+        const refreshToken = jwt.sign(
+            { id: user._id },
+            process.env.JWT_REFRESH_SECRET,
+            { expiresIn: "7d" } 
+        );
 
-        res.cookie('accessToken', accessToken, { httpOnly: true, secure: true });
-        res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: true });
+        user.refreshToken = refreshToken;
+        await user.save();
 
-        res.status(200).json({ message: 'Login successful', accessToken });
+        res.status(200).json({
+            message: "Login successful",
+            accessToken,
+            refreshToken,
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+        res.status(500).json({ message: "Server error", error });
     }
 };
+
 
 exports.refreshToken = async (req, res) => {
     try {
