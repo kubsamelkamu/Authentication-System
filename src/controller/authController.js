@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const Token = require('../models/Token');
-const { generateAccessToken, generateRefreshToken } = require('../config/jwt');
+
 
 exports.register = async (req, res) => {
     const { username, email, password, role } = req.body;
@@ -25,7 +25,7 @@ exports.register = async (req, res) => {
 };
 
 
-exports.loginUser = async (req, res) => {
+exports.login = async (req, res) => {
     const { email, password } = req.body;
 
     try {
@@ -42,27 +42,34 @@ exports.loginUser = async (req, res) => {
         const accessToken = jwt.sign(
             { id: user._id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: "15m" } 
+            { expiresIn: "15m" }
         );
 
         const refreshToken = jwt.sign(
             { id: user._id },
             process.env.JWT_REFRESH_SECRET,
-            { expiresIn: "7d" } 
+            { expiresIn: "7d" }
         );
 
         user.refreshToken = refreshToken;
         await user.save();
 
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production", 
+            sameSite: "strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000, 
+        });
+
         res.status(200).json({
             message: "Login successful",
             accessToken,
-            refreshToken,
         });
     } catch (error) {
         res.status(500).json({ message: "Server error", error });
     }
 };
+
 
 
 exports.refreshToken = async (req, res) => {
