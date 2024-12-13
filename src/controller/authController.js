@@ -2,26 +2,28 @@ const User = require('../models/User');
 const Token = require('../models/Token');
 const { generateAccessToken, generateRefreshToken } = require('../config/jwt');
 
-exports.registerUser = async (req, res) => {
-    try {
-        const { username, email, password } = req.body;
+exports.register = async (req, res) => {
+    const { username, email, password, role } = req.body;
 
-        if (!username || !email || !password) {
-            return res.status(400).json({ message: 'All fields are required' });
-        }
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
+    try {
+        const userExists = await User.findOne({ email });
+        if (userExists) {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        const newUser = new User({ username, email, password });
-        await newUser.save();
+        const newUser = await User.create({
+            username,
+            email,
+            password,
+            role: role || 'user', 
+        });
 
-        res.status(201).json({ message: 'User registered successfully' });
+        res.status(201).json({ message: 'User registered successfully', user: { id: newUser._id, username: newUser.username, role: newUser.role } });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
+
 
 
 exports.loginUser = async (req, res) => {
