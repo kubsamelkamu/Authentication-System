@@ -28,7 +28,9 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },   
-    refreshToken: { type: String },    
+    refreshToken: { type: String },  
+    verified: { type: Boolean, default: false }, 
+    verificationToken: { type: String },  
 });
 
 userSchema.pre('save', async function (next) {
