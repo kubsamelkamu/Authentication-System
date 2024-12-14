@@ -1,31 +1,47 @@
 const User = require('../models/User');
 const Token = require('../models/Token');
+const jwt = require("jsonwebtoken");
+const { sendEmail } = require("../utils/emailService");
 
 
-exports.register = async (req, res) => {
-    const { username, email, password, role } = req.body;
+exports .registerUser = async (req, res) => {
+    const {  name, email, password } = req.body;
 
     try {
-        const userExists = await User.findOne({ email });
-        if (userExists) {
-            return res.status(400).json({ message: 'User already exists' });
-        }
+        const existingUser = await User.findOne({ email });
+        if (existingUser) return res.status(400).json({ message: "User already exists." });
 
-        const newUser = await User.create({
-            username,
+        const newUser = new User({
+            name,
             email,
-            password,
-            role: role || 'user', 
+            password, 
         });
 
-        res.status(201).json({ message: 'User registered successfully', user: { id: newUser._id, username: newUser.username, role: newUser.role } });
+        const verificationToken = jwt.sign(
+            { email },
+            process.env.EMAIL_PASS,
+            { expiresIn: "1h" }
+        );
+        newUser.verificationToken = verificationToken;
+        await newUser.save();
+
+        const verificationLink = `${process.env.BASE_URL}/api/auth/verify-email?token=${verificationToken}`;
+        await sendEmail(
+            email,
+            "Verify Your Email",
+            "Please verify your email by clicking the link below.",
+            `<p>Please verify your email by clicking the <a href="${verificationLink}">link</a>.</p>`
+        );
+
+        res.status(201).json({ message: "User registered. Please verify your email." });
     } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+        console.error(error);
+        res.status(500).json({ message: "Error registering user." });
     }
 };
 
 
-exports.login = async (req, res) => {
+exports.loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     try {
@@ -71,45 +87,12 @@ exports.login = async (req, res) => {
 };
 
 
-
-exports.refreshToken = async (req, res) => {
-    const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-        return res.status(400).json({ message: "Refresh token is required" });
-    }
-
-    try {
-        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-        const user = await User.findOne({ _id: decoded.id, refreshToken });
-        if (!user) {
-            return res.status(403).json({ message: "Invalid refresh token" });
-        }
-        
-        const accessToken = jwt.sign(
-            { id: user._id, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: "15m" }
-        );
-
-        res.status(200).json({
-            accessToken,
-        });
-    } catch (error) {
-        res.status(403).json({ message: "Invalid or expired refresh token", error });
-    }
-};
-
-
-
 exports.logoutUser = async (req, res) => {
     try {
         const { refreshToken } = req.body;
-
         if (!refreshToken) {
             return res.status(400).json({ message: 'Refresh token is required' });
         }
-
 
         await Token.findOneAndDelete({ token: refreshToken });
 
