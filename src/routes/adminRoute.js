@@ -1,6 +1,11 @@
 const express = require('express');
 const authenticateToken = require('../middleware/authMiddleware');
 const authorizeRole = require('../middleware/roleMiddleware');
+const { checkVerified } = require("./middlewares/authMiddleware");
+
+app.get("/api/private-route", authenticateToken, checkVerified, (req, res) => {
+    res.json({ message: "Welcome to the private route!" });
+});
 
 const router = express.Router();
 
