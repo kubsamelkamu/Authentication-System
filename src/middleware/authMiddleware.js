@@ -1,4 +1,14 @@
 const jwt = require('jsonwebtoken');
+const User = require("../models/User");
+
+exports.checkVerified = async (req, res, next) => {
+    const user = await User.findById(req.user.id);
+    if (!user.verified) {
+        return res.status(403).json({ message: "Please verify your email to access this resource." });
+    }
+    next();
+};
+
 
 const authenticateToken = (req, res, next) => {
 
